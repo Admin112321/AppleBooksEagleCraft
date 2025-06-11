@@ -512,7 +512,22 @@ body {{
        const header = document.querySelector('.header');
        header.classList.toggle('minimized');
      }}
-
+     function toggleDebugLog() {{
+  const iframe = document.getElementById('gameFrame');
+  const debugBtn = document.getElementById('debugToggleBtn');
+  
+  if (iframe && iframe.contentWindow && iframe.contentWindow.toggleDebugLog) {{
+    iframe.contentWindow.toggleDebugLog();
+    // Update button appearance
+    if (debugBtn.innerHTML === 'Debug Log') {{
+      debugBtn.innerHTML = 'Hide Log';
+      debugBtn.style.backgroundColor = '#f44';
+    }} else {{
+      debugBtn.innerHTML = 'Debug Log';
+      debugBtn.style.backgroundColor = '#333';
+    }}
+  }}
+}}
      function launchGame() {{
        if (!gameLoaded) {{
          const iframe = document.getElementById('gameFrame');
@@ -550,18 +565,31 @@ body {{
      }}
 
      document.addEventListener('DOMContentLoaded', function() {{
-       const header = document.querySelector('.header');
-       const minimizeBtn = document.createElement('button');
-       minimizeBtn.className = 'minimize-btn';
-       minimizeBtn.innerHTML = '−';
-       minimizeBtn.onclick = toggleHeader;
-       header.appendChild(minimizeBtn);
+  const header = document.querySelector('.header');
+  const minimizeBtn = document.createElement('button');
+  minimizeBtn.className = 'minimize-btn';
+  minimizeBtn.innerHTML = '−';
+  minimizeBtn.onclick = toggleHeader;
+  header.appendChild(minimizeBtn);
 
-       const launchBtn = document.getElementById('launchBtn');
-       if (launchBtn) {{
-         launchBtn.addEventListener('click', launchGame);
-       }}
-     }});
+  // Add debug log toggle button as separate element
+  const debugBtn = document.createElement('button');
+  debugBtn.id = 'debugToggleBtn';
+  debugBtn.className = 'launch-btn';
+  debugBtn.style.backgroundColor = '#333';
+  debugBtn.style.color = '#0f0';
+  debugBtn.style.padding = '10px 20px';
+  debugBtn.style.fontSize = '14px';
+  debugBtn.innerHTML = 'Debug Log';
+  debugBtn.onclick = toggleDebugLog;
+  
+  // Insert debug button after the launch button
+  const launchBtn = document.getElementById('launchBtn');
+  if (launchBtn) {{
+    launchBtn.parentNode.insertBefore(debugBtn, launchBtn.nextSibling);
+    launchBtn.addEventListener('click', launchGame);
+  }}
+}});
      ]]>
    </script>
  </head>
