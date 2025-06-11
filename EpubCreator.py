@@ -95,7 +95,7 @@ def create_eaglecraft_epub():
         (function() {
             'use strict';
 
-            window.appleLog = function(message, type = 'info') {
+            function appleLog(message, type = 'info') {
                 const logContent = document.getElementById('log-content');
                 if (logContent) {
                     const timestamp = new Date().toLocaleTimeString();
