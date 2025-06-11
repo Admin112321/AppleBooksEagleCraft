@@ -44,6 +44,24 @@ def create_eaglecraft_epub():
         return False
 
     browser_api_fixes = """
+    <script type="text/javascript">
+      window.toggleDebugLog = function() {
+    const logger = document.getElementById('apple-books-logger');
+    const button = document.getElementById('debug-toggle-btn');
+    
+    if (logger && button) {
+        if (logger.style.display === 'none' || logger.style.display === '') {
+            logger.style.display = 'block';
+            button.textContent = 'Hide Log';
+            button.style.backgroundColor = '#f44';
+        } else {
+            logger.style.display = 'none';
+            button.textContent = 'Debug Log';
+            button.style.backgroundColor = '#333';
+        }
+    }
+}
+</script>
     <div id="apple-books-logger" style="
         position: fixed; 
         top: 0; 
@@ -352,24 +370,14 @@ document.createElement = function(tagName) {
             appleLog('Apple Books browser API implementation complete');
 
         })();
+
         
-        window.toggleDebugLog = function toggleDebugLog() {
-    const logger = document.getElementById('apple-books-logger');
-    const button = document.getElementById('debug-toggle-btn');
+    </script>
     
-    if (logger && button) {
-        if (logger.style.display === 'none' || logger.style.display === '') {
-            logger.style.display = 'block';
-            button.textContent = 'Hide Log';
-            button.style.backgroundColor = '#f44';
-        } else {
-            logger.style.display = 'none';
-            button.textContent = 'Debug Log';
-            button.style.backgroundColor = '#333';
-        }
-    }
-}
-    </script>"""
+    """
+    
+
+
 
     if "<head>" in raw_html:
         raw_html = raw_html.replace("<head>", f"<head>{browser_api_fixes}")
