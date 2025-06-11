@@ -51,23 +51,23 @@ def create_eaglecraft_epub():
         width: 300px; 
         height: 200px; 
         background: rgba(0,0,0,0.9); 
-        color: 
+        color: #0f0; 
         font-family: monospace; 
         font-size: 10px; 
         padding: 10px; 
         overflow-y: auto; 
         z-index: 999999; 
-        border: 2px solid 
+        border: 2px solid #666; 
         display: none;
     ">
         <div style="color: #fff; font-weight: bold; margin-bottom: 5px;">
             Apple Books Debug Log
-            <button onclick="document.getElementById('apple-books-logger').style.display='none'" 
+            <button onclick="toggleDebugLog()" 
                     style="float: right; background: #f44; color: white; border: none; padding: 2px 6px;">×</button>
         </div>
         <div id="log-content"></div>
     </div>
-    <button onclick="document.getElementById('apple-books-logger').style.display='block'" 
+    <button id="debug-toggle-btn" onclick="toggleDebugLog()" 
             style="position: fixed; top: 10px; right: 10px; z-index: 1000000; background: #333; color: #0f0; border: 1px solid #666; padding: 5px;">
         Debug Log
     </button>
@@ -76,6 +76,22 @@ def create_eaglecraft_epub():
 
         (function() {
             'use strict';
+
+            // Add the toggle function to global scope
+            window.toggleDebugLog = function() {
+                const logger = document.getElementById('apple-books-logger');
+                const button = document.getElementById('debug-toggle-btn');
+                
+                if (logger.style.display === 'none' || logger.style.display === '') {
+                    logger.style.display = 'block';
+                    button.textContent = 'Hide Log';
+                    button.style.backgroundColor = '#f44';
+                } else {
+                    logger.style.display = 'none';
+                    button.textContent = 'Debug Log';
+                    button.style.backgroundColor = '#333';
+                }
+            };
 
             window.appleLog = function(message, type = 'info') {
                 const logContent = document.getElementById('log-content');
@@ -90,7 +106,6 @@ def create_eaglecraft_epub():
                     console.log(`[Apple Books] ${message}`);
                 }
             };
-
             appleLog('Apple Books API implementation loaded');
 
             if (!window.indexedDB) {
@@ -194,35 +209,45 @@ def create_eaglecraft_epub():
             if (window.fetch) {
                 const originalFetch = window.fetch;
                 window.fetch = function(url, options = {}) {
-                    appleLog(`Fetch request: ${url}`);
+    appleLog(`Fetch request: ${url}`);
 
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Network timeout')), 15000);
-                    });
+    // Only add timeout for non-WebSocket and non-critical network requests
+    const isWebSocket = url.includes('ws://') || url.includes('wss://');
+    const isServerRequest = url.includes('api.') || url.includes('server') || url.includes(':') || url.includes('http') || url.includes('ws');
+    if (isWebSocket || isServerRequest) {
+        // Let server requests use default timeout
+        return originalFetch(url, {
+            ...options,
+            mode: 'cors',
+            cache: 'no-cache'  // Changed for server requests
+        }).then(response => {
+            appleLog(`Fetch response: ${url} - ${response.status}`);
+            return response;
+        }).catch(error => {
+            appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
+            throw error;  // Re-throw for proper error handling
+        });
+    }
 
-                    const fetchPromise = originalFetch(url, {
-                        ...options,
-                        mode: 'cors',
-                        cache: 'default'
-                    }).then(response => {
-                        appleLog(`Fetch response: ${url} - ${response.status}`);
-                        return response;
-                    }).catch(error => {
-                        appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
+    // Keep timeout only for asset requests
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Network timeout')), 15000);
+    });
 
-                        return new Response('', { 
-                            status: 200, 
-                            statusText: 'OK',
-                            headers: new Headers({
-                                'Content-Type': 'application/octet-stream'
-                            })
-                        });
-                    });
+    const fetchPromise = originalFetch(url, {
+        ...options,
+        mode: 'cors',
+        cache: 'default'
+    }).then(response => {
+        appleLog(`Fetch response: ${url} - ${response.status}`);
+        return response;
+    }).catch(error => {
+        appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
+        throw error;
+    });
 
-                    return Promise.race([fetchPromise, timeoutPromise]);
-                };
-            }
-
+    return Promise.race([fetchPromise, timeoutPromise]);
+};
             if (window.XMLHttpRequest) {
                 const OriginalXHR = window.XMLHttpRequest;
                 window.XMLHttpRequest = function() {
@@ -231,101 +256,61 @@ def create_eaglecraft_epub():
                     const originalSend = xhr.send;
 
                     xhr.open = function(method, url, async = true, user, password) {
-                        appleLog(`XHR ${method}: ${url}`);
-                        xhr.timeout = 15000;
+    appleLog(`XHR ${method}: ${url}`);
+    xhr.timeout = 15000;
+    xhr._url = url; // Store URL for error handler
+    
+    xhr.ontimeout = function() {
+        appleLog(`XHR timeout: ${url}`, 'warn');
+        xhr.status = 200;
+        xhr.readyState = 4;
+        xhr.response = new ArrayBuffer(0);
+        xhr.responseText = '';
+        if (xhr.onload) xhr.onload();
+    };
 
-                        xhr.ontimeout = function() {
-                            appleLog(`XHR timeout: ${url}`, 'warn');
-                            if (xhr.onload) {
-                                xhr.status = 200;
-                                xhr.responseText = '';
-                                xhr.response = new ArrayBuffer(0);
-                                xhr.onload();
-                            }
-                        };
-
-                        return originalOpen.call(this, method, url, async, user, password);
-                    };
+    return originalOpen.call(this, method, url, async, user, password);
+};
 
                     xhr.send = function(data) {
                         const originalError = xhr.onerror;
                         xhr.onerror = function(e) {
-    const url = xhr.responseURL || 'unknown';
-    appleLog(`XHR error: ${url} - ${e.message || 'Network error'}`, 'error');
+    const url = xhr.responseURL || xhr._url || 'unknown';
+    appleLog(`XHR attempting: ${url}`, 'info'); // Changed from 'error'
 
-    // Check if this is a bundle request
-    if (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('eaglercraftx')) {
-        appleLog('Providing valid EaglercraftX client bundle');
-        
-        // Create a proper client bundle structure
-        const clientBundle = {
-            "type": "eaglercraftx_client_bundle",
-            "version": "1.8.8",
-            "format": "EPK",
-            "compressed": false,
-            "offline": true,
-            "timestamp": Date.now(),
-            "assets": {
-                "minecraft": {
-                    "textures": {},
-                    "sounds": {},
-                    "models": {}
-                }
-            },
-            "classes": {
-                "net.minecraft.client.main.Main": "placeholder"
-            },
-            "resources": {
-                "pack.mcmeta": JSON.stringify({
-                    "pack": {
-                        "pack_format": 1,
-                        "description": "Default Resource Pack"
-                    }
-                })
-            },
-            "manifest": {
-                "main_class": "net.minecraft.client.main.Main",
-                "libraries": []
-            }
-        };
-
-        // Convert to proper format for Eaglercraft
-        const bundleData = JSON.stringify(clientBundle);
-        
-        // Set proper response properties
-        xhr.status = 200;
-        xhr.readyState = 4;
-        xhr.responseText = bundleData;
-        
-        // Create proper ArrayBuffer response
-        const encoder = new TextEncoder();
-        const uint8Array = encoder.encode(bundleData);
-        xhr.response = uint8Array.buffer;
-        
-        // Set proper headers
-        Object.defineProperty(xhr, 'responseHeaders', {
-            value: {
-                'Content-Type': 'application/octet-stream',
-                'Content-Length': uint8Array.length.toString()
-            }
-        });
-        
-        appleLog(`Bundle created: ${uint8Array.length} bytes`);
-        
-        if (xhr.onreadystatechange) xhr.onreadystatechange();
-        if (xhr.onload) xhr.onload();
+    // Don't fake successful responses for network requests
+    if (url.includes('ws://') || url.includes('wss://') || url.includes('api.') || url.includes('server') || url.includes(':')) {
+        // Let real network requests fail naturally for proper error handling
+        if (originalError) originalError.call(this, e);
         return;
     }
 
-    // For other requests, provide empty but valid response
-    xhr.status = 200;
-    xhr.readyState = 4;
-    xhr.responseText = '';
-    xhr.response = new ArrayBuffer(0);
-    if (xhr.onreadystatechange) xhr.onreadystatechange();
-    if (xhr.onload) xhr.onload();
+    // Only fake responses for local asset requests
+    if (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('eaglercraftx') || url.includes('.epk')) {
+        xhr.status = 200;
+        xhr.readyState = 4;
+        xhr.statusText = 'OK';
+        
+        const epkHeader = new Uint8Array([0x45, 0x50, 0x4B, 0x00]);
+        const bundleSize = new Uint8Array(4);
+        const bundleData = new Uint8Array(1024);
+        
+        const fullBundle = new Uint8Array(epkHeader.length + bundleSize.length + bundleData.length);
+        fullBundle.set(epkHeader, 0);
+        fullBundle.set(bundleSize, epkHeader.length);
+        fullBundle.set(bundleData, epkHeader.length + bundleSize.length);
+        
+        xhr.response = fullBundle.buffer;
+        xhr.responseText = '';
+        appleLog(`EPK bundle created: ${fullBundle.length} bytes`);
+        
+        if (xhr.onreadystatechange) xhr.onreadystatechange();
+        if (xhr.onload) xhr.onload();
+    } else {
+        // Let other requests fail naturally
+        if (originalError) originalError.call(this, e);
+    }
 };
-
                         return originalSend.call(this, data);
                     };
 
@@ -362,7 +347,7 @@ def create_eaglecraft_epub():
 
             Object.defineProperty(navigator, 'onLine', {
                 writable: true,
-                value: false
+                value: true //////////////////TOGGLE ON/OFF FOR ONLINE MODE
             });
 
 const originalCreateElement = document.createElement;
