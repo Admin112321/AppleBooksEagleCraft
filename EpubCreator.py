@@ -191,139 +191,6 @@ def create_eaglecraft_epub():
                     }
                 };
             }
-
-            if (!window.Worker) {
-                appleLog('Implementing Web Workers for Apple Books', 'warn');
-
-                window.Worker = function(scriptURL) {
-                    appleLog(`Creating worker: ${scriptURL}`);
-
-                    const worker = {
-                        postMessage: function(data) {
-                            appleLog(`Worker message: ${JSON.stringify(data).slice(0, 100)}`);
-
-                            setTimeout(() => {
-                                if (this.onmessage) {
-                                    this.onmessage({ data: { result: 'processed' } });
-                                }
-                            }, 100);
-                        },
-                        terminate: function() {
-                            appleLog('Worker terminated');
-                        },
-                        addEventListener: function(type, handler) {
-                            if (type === 'message') {
-                                this.onmessage = handler;
-                            }
-                        },
-                        removeEventListener: function() {},
-                        onmessage: null,
-                        onerror: null
-                    };
-
-                    return worker;
-                };
-            }
-            
-            if (window.pako) {
-                appleLog('Patching Pako compression library');
-
-                const originalInflate = window.pako.inflate;
-                const originalInflateRaw = window.pako.inflateRaw;
-                const originalDeflate = window.pako.deflate;
-
-                window.pako.inflate = function(data, options) {
-                    try {
-                        appleLog(`Decompressing ${data.length} bytes`);
-                        const result = originalInflate.call(this, data, options);
-                        appleLog(`Decompression successful: ${result.length} bytes`);
-                        return result;
-                    } catch (e) {
-                        appleLog(`Decompression failed: ${e.message}`, 'error');
-
-                        return new Uint8Array([]);
-                    }
-                };
-
-                window.pako.inflateRaw = function(data, options) {
-                    try {
-                        return originalInflateRaw.call(this, data, options);
-                    } catch (e) {
-                        appleLog(`Raw decompression failed: ${e.message}`, 'error');
-                        return new Uint8Array([]);
-                    }
-                };
-            }
-
-if (!window.pako) {
-    window.pako = {
-        inflate: function(data, options) {
-            appleLog('Using fallback decompression');
-
-            return data instanceof Uint8Array ? data : new Uint8Array(data);
-        },
-        inflateRaw: function(data, options) {
-            return data instanceof Uint8Array ? data : new Uint8Array(data);
-        },
-        deflate: function(data, options) {
-            return data instanceof Uint8Array ? data : new Uint8Array(data);
-        }
-    };
-}
-setTimeout(() => {
-
-    const decompressFunctions = ['decompress', 'inflate', 'inflateRaw', 'ungzip', 'unzip'];
-
-    decompressFunctions.forEach(funcName => {
-        if (window[funcName]) {
-            window[funcName] = function(data) {
-                appleLog(`Bypassed ${funcName} - returning data as-is`);
-                return data;
-            };
-        }
-    });
-
-    if (window.EaglercraftXBungeeConfig) {
-        window.EaglercraftXBungeeConfig.compressionLevel = 0;
-    }
-
-    window.isCompressionEnabled = () => false;
-    window.shouldCompress = () => false;
-
-}, 1000);
-
-if (!window.TextDecoder) {
-    window.TextDecoder = function() {
-        this.decode = function(buffer) {
-            const bytes = new Uint8Array(buffer);
-            let result = '';
-            for (let i = 0; i < bytes.length; i++) {
-                result += String.fromCharCode(bytes[i]);
-            }
-            return result;
-        };
-    };
-}
-
-if (!window.TextEncoder) {
-    window.TextEncoder = function() {
-        this.encode = function(str) {
-            const bytes = new Uint8Array(str.length);
-            for (let i = 0; i < str.length; i++) {
-                bytes[i] = str.charCodeAt(i);
-            }
-            return bytes;
-        };
-    };
-}
-
-            if (!window.showOpenFilePicker) {
-                window.showOpenFilePicker = function() {
-                    appleLog('File picker not available in Apple Books', 'warn');
-                    return Promise.reject(new Error('File picker not supported'));
-                };
-            }
-
             if (window.fetch) {
                 const originalFetch = window.fetch;
                 window.fetch = function(url, options = {}) {
@@ -513,71 +380,6 @@ document.createElement = function(tagName) {
 
     return element;
 };
-
-            setTimeout(() => {
-                appleLog('Applying Eaglecraft-specific patches');
-
-                if (window.eaglercraftXOpts) {
-                    window.eaglercraftXOpts.enableCompression = false;
-                    window.eaglercraftXOpts.compressPackets = false;
-                    window.eaglercraftXOpts.forceOfflineMode = true;
-                    window.eaglercraftXOpts.enableWebGL = true;
-                    window.eaglercraftXOpts.resourcePacksEnabled = false;
-                    appleLog('Eaglecraft options configured for Apple Books');
-                }
-
-                if (window.EaglercraftX || window.eaglercraftX) {
-                    const eaglecraft = window.EaglercraftX || window.eaglercraftX;
-
-                    if (eaglecraft.loadResource) {
-                        const originalLoadResource = eaglecraft.loadResource;
-                        eaglecraft.loadResource = function(url, callback) {
-                            appleLog(`Loading resource: ${url}`);
-
-                            try {
-                                return originalLoadResource.call(this, url, function(data) {
-                                    appleLog(`Resource loaded: ${url} (${data ? data.byteLength || data.length : 0} bytes)`);
-                                    if (callback) callback(data);
-                                });
-                            } catch (e) {
-                                appleLog(`Resource loading failed: ${url} - ${e.message}`, 'error');
-
-                                if (callback) callback(new ArrayBuffer(0));
-                            }
-                        };
-                    }
-                }
-
-                if (window.EaglercraftX && window.EaglercraftX.verifyResources) {
-                    window.EaglercraftX.verifyResources = function() {
-                        appleLog('Skipping resource verification');
-                        return Promise.resolve(true);
-                    };
-                }
-
-            }, 2000);
-
-if (window.EaglercraftX || window.eaglercraftX) {
-    const eaglecraft = window.EaglercraftX || window.eaglercraftX;
-
-    if (eaglecraft.decompress || window.decompress) {
-        const originalDecompress = eaglecraft.decompress || window.decompress;
-        const newDecompress = function(data) {
-            appleLog('Decompression bypassed for Apple Books compatibility');
-
-            return data;
-        };
-
-        if (eaglecraft.decompress) eaglecraft.decompress = newDecompress;
-        if (window.decompress) window.decompress = newDecompress;
-    }
-
-    if (eaglecraft.loadOfflineResources) {
-        eaglecraft.loadOfflineResources();
-        appleLog('Forced offline resource loading');
-    }
-}
-
             appleLog('Apple Books browser API implementation complete');
 
         })();
@@ -813,11 +615,11 @@ body {{
 
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">{html.escape(book_id)}</dc:identifier>
-    <dc:title>Eaglecraft - Apple Books Enhanced</dc:title>
-    <dc:creator>Eaglecraft Team</dc:creator>
+    <dc:title>Eaglecraft - Apple Books</dc:title>
+    <dc:creator>WereWolf</dc:creator>
     <dc:language>en</dc:language>
     <dc:subject>Games</dc:subject>
-    <dc:description>Eaglecraft with comprehensive Apple Books browser API support</dc:description>
+    <dc:description>Eaglecraft in apple books</dc:description>
     <dc:date>{current_date}</dc:date>
     <meta property="dcterms:modified">{current_date}</meta>
   </metadata>
@@ -867,7 +669,7 @@ body {{
     <meta name="dtb:maxPageNumber" content="0"/>
   </head>
   <docTitle>
-    <text>Eaglecraft - Apple Books Enhanced</text>
+    <text>Eaglecraft - Apple Books</text>
   </docTitle>
   <navMap>
     <navPoint id="navpoint-1" playOrder="1">
@@ -882,7 +684,7 @@ body {{
     with open(os.path.join(oebps_path, "toc.ncx"), "w", encoding="utf-8") as f:
         f.write(toc_ncx)
 
-    epub_path = os.path.expanduser("~/Documents/eaglecraft_apple_books_enhanced.epub")
+    epub_path = os.path.expanduser("~/Documents/eaglecraft_book.epub")
 
     try:
         with zipfile.ZipFile(epub_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as epub:
