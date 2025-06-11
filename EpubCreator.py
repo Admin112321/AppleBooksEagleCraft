@@ -77,7 +77,7 @@ def create_eaglecraft_epub():
         (function() {
             'use strict';
 
-            function toggleDebugLog() {
+            window.toggleDebugLog = function toggleDebugLog() {
     const logger = document.getElementById('apple-books-logger');
     const button = document.getElementById('debug-toggle-btn');
     
@@ -94,8 +94,6 @@ def create_eaglecraft_epub():
     }
 }
 
-// Also assign to window for redundancy
-window.toggleDebugLog = toggleDebugLog;
 
             window.appleLog = function(message, type = 'info') {
                 const logContent = document.getElementById('log-content');
@@ -674,26 +672,33 @@ body {{
         f.write(toc_ncx)
 
     epub_path = os.path.expanduser("~/Documents/eaglecraft_book.epub")
+
     try:
         with zipfile.ZipFile(epub_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as epub:
             epub.write(mimetype_path, "mimetype", compress_type=zipfile.ZIP_STORED)
             epub.write(os.path.join(meta_inf_path, "container.xml"), "META-INF/container.xml")
+
             for filename in ["content.opf", "index.xhtml", "nav.xhtml", "toc.ncx", html_filename]:
                 file_path = os.path.join(oebps_path, filename)
                 if os.path.exists(file_path):
                     epub.write(file_path, f"OEBPS/{filename}")
+
         print("Apple Books EPUB created successfully:", epub_path)
         print(f"File size: {os.path.getsize(epub_path) / 1024 / 1024:.2f} MB")
+
         return True
+
     except Exception as e:
         print(f"Error creating EPUB: {e}")
         return False
+
     finally:
         try:
             import shutil
             shutil.rmtree(output_dir)
         except:
             pass
+
 if __name__ == "__main__":
 
     if create_eaglecraft_epub():
