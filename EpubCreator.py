@@ -383,42 +383,81 @@ if (!window.TextEncoder) {
                     xhr.send = function(data) {
                         const originalError = xhr.onerror;
                         xhr.onerror = function(e) {
-                            appleLog(`XHR error: ${xhr.responseURL || 'unknown'} - ${e.message || 'Network error'}`, 'error');
+    const url = xhr.responseURL || 'unknown';
+    appleLog(`XHR error: ${url} - ${e.message || 'Network error'}`, 'error');
 
-                            if (xhr.responseURL && (xhr.responseURL.includes('Bundle') || xhr.responseURL.includes('bundle') || xhr.responseURL.includes('client') || xhr.responseURL.includes('eaglercraftx'))) {
-                                appleLog('Providing valid EaglercraftX client bundle');
-                                xhr.status = 200;
-                                xhr.readyState = 4;
+    // Check if this is a bundle request
+    if (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('eaglercraftx')) {
+        appleLog('Providing valid EaglercraftX client bundle');
+        
+        // Create a proper client bundle structure
+        const clientBundle = {
+            "type": "eaglercraftx_client_bundle",
+            "version": "1.8.8",
+            "format": "EPK",
+            "compressed": false,
+            "offline": true,
+            "timestamp": Date.now(),
+            "assets": {
+                "minecraft": {
+                    "textures": {},
+                    "sounds": {},
+                    "models": {}
+                }
+            },
+            "classes": {
+                "net.minecraft.client.main.Main": "placeholder"
+            },
+            "resources": {
+                "pack.mcmeta": JSON.stringify({
+                    "pack": {
+                        "pack_format": 1,
+                        "description": "Default Resource Pack"
+                    }
+                })
+            },
+            "manifest": {
+                "main_class": "net.minecraft.client.main.Main",
+                "libraries": []
+            }
+        };
 
-                                const clientBundle = JSON.stringify({
-                                    "type": "eaglercraftx_client_bundle",
-                                    "version": "1.8.8",
-                                    "assets": {},
-                                    "classes": {},
-                                    "resources": {},
-                                    "offline": true,
-                                    "compressed": false
-                                });
+        // Convert to proper format for Eaglercraft
+        const bundleData = JSON.stringify(clientBundle);
+        
+        // Set proper response properties
+        xhr.status = 200;
+        xhr.readyState = 4;
+        xhr.responseText = bundleData;
+        
+        // Create proper ArrayBuffer response
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(bundleData);
+        xhr.response = uint8Array.buffer;
+        
+        // Set proper headers
+        Object.defineProperty(xhr, 'responseHeaders', {
+            value: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Length': uint8Array.length.toString()
+            }
+        });
+        
+        appleLog(`Bundle created: ${uint8Array.length} bytes`);
+        
+        if (xhr.onreadystatechange) xhr.onreadystatechange();
+        if (xhr.onload) xhr.onload();
+        return;
+    }
 
-                                const base64Bundle = btoa(clientBundle);
-                                xhr.responseText = base64Bundle;
-
-                                const encoder = new TextEncoder();
-                                const uint8Array = encoder.encode(base64Bundle);
-                                xhr.response = uint8Array.buffer;
-
-                                if (xhr.onreadystatechange) xhr.onreadystatechange();
-                                if (xhr.onload) xhr.onload();
-                                return;
-                            }
-
-                            xhr.status = 200;
-                            xhr.readyState = 4;
-                            xhr.responseText = '';
-                            xhr.response = new ArrayBuffer(0);
-                            if (xhr.onreadystatechange) xhr.onreadystatechange();
-                            if (xhr.onload) xhr.onload();
-                        };
+    // For other requests, provide empty but valid response
+    xhr.status = 200;
+    xhr.readyState = 4;
+    xhr.responseText = '';
+    xhr.response = new ArrayBuffer(0);
+    if (xhr.onreadystatechange) xhr.onreadystatechange();
+    if (xhr.onload) xhr.onload();
+};
 
                         return originalSend.call(this, data);
                     };
