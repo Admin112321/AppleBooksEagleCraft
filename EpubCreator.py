@@ -110,22 +110,23 @@ def create_eaglecraft_epub():
 };
             // Flush pending logs when DOM is ready
 function flushPendingLogs() {
-    if (window.pendingLogs && window.pendingLogs.length > 0) {
-        const logContent = document.getElementById('log-content');
-        if (logContent) {
-            window.pendingLogs.forEach(log => {
-                const color = log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0';
-                logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${log.timestamp}] ${log.message}</div>`;
-            });
-            logContent.scrollTop = logContent.scrollHeight;
-            window.pendingLogs = [];
-        }
+    const logContent = document.getElementById('log-content');
+    if (window.pendingLogs && window.pendingLogs.length > 0 && logContent) {
+        window.pendingLogs.forEach(log => {
+            const color = log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0';
+            logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${log.timestamp}] ${log.message}</div>`;
+        });
+        logContent.scrollTop = logContent.scrollHeight;
+        window.pendingLogs = [];
     }
 }
             appleLog('Apple Books API implementation loaded');
 // Try to flush logs immediately and set up interval
-setTimeout(flushPendingLogs, 100);
-setInterval(flushPendingLogs, 1000);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', flushPendingLogs);
+} else {
+    setTimeout(flushPendingLogs, 50);
+}
 
             if (!window.indexedDB) {
                 appleLog('Implementing IndexedDB for Apple Books', 'warn');
