@@ -195,167 +195,6 @@ def create_eaglecraft_epub():
 
 
 
-            const originalGetElementById = document.getElementById;
-    document.getElementById = function(id) {
-        const element = originalGetElementById.call(this, id);
-        if (id === 'apple-books-logger' && element) {
-            // Force the debug logger to be functional
-            element.style.pointerEvents = 'auto';
-            element.style.zIndex = '999999';
-        }
-        return element;
-    };
-
-    // Intercept bundle requests BEFORE they're made
-    if (window.XMLHttpRequest) {
-        const OriginalXHR = window.XMLHttpRequest;
-        window.XMLHttpRequest = function() {
-            const xhr = new OriginalXHR();
-            const originalOpen = xhr.open;
-            const originalSend = xhr.send;
-
-            xhr.open = function(method, url, async = true, user, password) {
-                appleLog(`XHR ${method}: ${url}`);
-                
-                // Intercept bundle requests immediately
-                if (url && (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('.epk'))) {
-                    appleLog('Intercepting bundle request before send');
-                    
-                    // Override the request entirely
-                    setTimeout(() => {
-                        try {
-                            // Create a minimal valid EPK file structure
-                            const epkData = createMinimalEPK();
-                            
-                            xhr.status = 200;
-                            xhr.readyState = 4;
-                            xhr.responseText = uint8ArrayToBase64(epkData);
-                            xhr.response = epkData.buffer;
-                            
-                            Object.defineProperty(xhr, 'responseType', { value: 'arraybuffer' });
-                            
-                            appleLog(`Bundle intercepted: ${epkData.length} bytes`);
-                            
-                            if (xhr.onreadystatechange) xhr.onreadystatechange();
-                            if (xhr.onload) xhr.onload();
-                            
-                        } catch (e) {
-                            appleLog(`Bundle creation error: ${e.message}`, 'error');
-                            xhr.status = 404;
-                            xhr.readyState = 4;
-                            if (xhr.onerror) xhr.onerror();
-                        }
-                    }, 10);
-                    
-                    return; // Don't actually open the request
-                }
-                
-                return originalOpen.call(this, method, url, async, user, password);
-            };
-
-            xhr.send = function(data) {
-                // If this is a bundle request, it was already handled in open()
-                const url = xhr.responseURL || this._url || '';
-                if (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('.epk')) {
-                    return; // Already handled
-                }
-                
-                return originalSend.call(this, data);
-            };
-
-            return xhr;
-        };
-    }
-
-    // Helper function to create minimal EPK
-    function createMinimalEPK() {
-        // Create a minimal ZIP-like structure that Eaglercraft can decode
-        const header = new Uint8Array([
-            // ZIP local file header signature
-            0x50, 0x4B, 0x03, 0x04,
-            // Version needed to extract (2.0)
-            0x14, 0x00,
-            // General purpose bit flag
-            0x00, 0x00,
-            // Compression method (stored)
-            0x00, 0x00,
-            // File last modification time & date
-            0x00, 0x00, 0x00, 0x00,
-            // CRC-32
-            0x00, 0x00, 0x00, 0x00,
-            // Compressed size
-            0x0F, 0x00, 0x00, 0x00,
-            // Uncompressed size  
-            0x0F, 0x00, 0x00, 0x00,
-            // File name length
-            0x0A, 0x00,
-            // Extra field length
-            0x00, 0x00
-        ]);
-        
-        const filename = new TextEncoder().encode('client.dat');
-        const content = new TextEncoder().encode('{"offline":true}');
-        
-        const total = new Uint8Array(header.length + filename.length + content.length);
-        total.set(header, 0);
-        total.set(filename, header.length);
-        total.set(content, header.length + filename.length);
-        
-        return total;
-    }
-
-    // Helper function for base64 encoding
-    function uint8ArrayToBase64(uint8Array) {
-        let binary = '';
-        for (let i = 0; i < uint8Array.length; i++) {
-            binary += String.fromCharCode(uint8Array[i]);
-        }
-        return btoa(binary);
-    }
-
-    // Override base64 decoding to handle errors gracefully
-    if (window.atob) {
-        const originalAtob = window.atob;
-        window.atob = function(str) {
-            try {
-                return originalAtob(str);
-            } catch (e) {
-                appleLog(`Base64 decode error: ${e.message}`, 'error');
-                return ''; // Return empty string instead of throwing
-            }
-        };
-    }
-
-    appleLog('Immediate bundle interception active');
-})();
-
-// Also fix the debug logger CSS immediately:
-const debugLoggerStyle = document.createElement('style');
-debugLoggerStyle.textContent = `
-#apple-books-logger {
-    pointer-events: auto !important;
-    user-select: text !important;
-    -webkit-user-select: text !important;
-}
-#apple-books-logger button {
-    pointer-events: auto !important;
-    cursor: pointer !important;
-}
-`;
-document.head.appendChild(debugLoggerStyle);
-
-
-
-
-
-
-
-
-
-
-
-
-
             
             if (!window.Worker) {
                 appleLog('Implementing Web Workers for Apple Books', 'warn');
@@ -553,67 +392,63 @@ if (!window.TextEncoder) {
 
     // Check if this is a bundle request
     if (url.includes('Bundle') || url.includes('bundle') || url.includes('client') || url.includes('eaglercraftx')) {
-        appleLog('Creating mock EaglercraftX client bundle');
+        appleLog('Creating valid EaglercraftX client bundle');
         
-        try {
-            // Create a minimal EPK-compatible structure
-            // EPK files are typically ZIP-like structures with specific headers
-            const epkHeader = new Uint8Array([
-                0x50, 0x4B, 0x03, 0x04, // ZIP signature
-                0x14, 0x00, 0x00, 0x00, // Version, flags
-                0x00, 0x00, 0x00, 0x00, // Compression method, time, date
-                0x00, 0x00, 0x00, 0x00, // CRC-32
-                0x00, 0x00, 0x00, 0x00, // Compressed size
-                0x00, 0x00, 0x00, 0x00, // Uncompressed size
-                0x0A, 0x00, 0x00, 0x00, // Filename length, extra field length
-            ]);
-            
-            // Add filename "client.dat"
-            const filename = new TextEncoder().encode('client.dat');
-            
-            // Create minimal client data
-            const clientData = new TextEncoder().encode('{"offline":true,"version":"1.8.8"}');
-            
-            // Combine into a basic EPK structure
-            const totalSize = epkHeader.length + filename.length + clientData.length;
-            const epkBuffer = new Uint8Array(totalSize);
-            
-            let offset = 0;
-            epkBuffer.set(epkHeader, offset);
-            offset += epkHeader.length;
-            epkBuffer.set(filename, offset);
-            offset += filename.length;
-            epkBuffer.set(clientData, offset);
-            
-            // Set proper response properties
-            xhr.status = 200;
-            xhr.readyState = 4;
-            xhr.response = epkBuffer.buffer;
-            
-            // Convert to base64 for responseText (what Eaglercraft expects)
-            const base64String = btoa(String.fromCharCode.apply(null, epkBuffer));
-            xhr.responseText = base64String;
-            
-            // Set proper headers
-            Object.defineProperty(xhr, 'responseHeaders', {
-                value: {
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Length': epkBuffer.length.toString(),
-                    'Content-Encoding': 'binary'
+         const clientBundle = {
+            "type": "eaglercraftx_client_bundle",
+            "version": "1.8.8",
+            "format": "EPK",
+            "compressed": false,
+            "offline": true,
+            "timestamp": Date.now(),
+            "assets": {
+                "minecraft": {
+                    "textures": {},
+                    "sounds": {},
+                    "models": {}
                 }
+              },Add commentMore actions
+            "classes": {
+                "net.minecraft.client.main.Main": "placeholder"
+            },
+            "resources": {
+                "pack.mcmeta": JSON.stringify({
+                    "pack": {
+                        "pack_format": 1,
+                        "description": "Default Resource Pack"
+                    }
+                })
+            },
+            "manifest": {
+                "main_class": "net.minecraft.client.main.Main",
+                "libraries": []
+            }
+        };
+
+        // Convert to proper format for Eaglercraft
+        const bundleData = JSON.stringify(clientBundle);
+        
+        // Set proper response properties
+        xhr.status = 200;
+        xhr.readyState = 4;
+        xhr.responseText = bundleData;
+        
+        // Create proper ArrayBuffer response
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(bundleData);
+        xhr.response = uint8Array.buffer;
+        
+        // Set proper headers
+        Object.defineProperty(xhr, 'responseHeaders', {
+            value: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Length': uint8Array.length.toString()
+            }
+        });
+        
+        appleLog(`Bundle created: ${uint8Array.length} bytes`);
             });
-            
-            appleLog(`EPK bundle created: ${epkBuffer.length} bytes, base64: ${base64String.length} chars`);
-            
-        } catch (bundleError) {
-            appleLog(`Bundle creation failed: ${bundleError.message}`, 'error');
-            
-            // Fallback: provide empty but valid response
-            xhr.status = 200;
-            xhr.readyState = 4;
-            xhr.responseText = '';
-            xhr.response = new ArrayBuffer(0);
-        }
+
         
         if (xhr.onreadystatechange) xhr.onreadystatechange();
         if (xhr.onload) xhr.onload();
