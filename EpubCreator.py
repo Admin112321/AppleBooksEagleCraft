@@ -95,20 +95,37 @@ def create_eaglecraft_epub():
         (function() {
             'use strict';
 
-            function appleLog(message, type = 'info') {
-                const logContent = document.getElementById('log-content');
-                if (logContent) {
-                    const timestamp = new Date().toLocaleTimeString();
-                    const color = type === 'error' ? '#f44' : type === 'warn' ? '#fa0' : '#0f0';
-                    logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${timestamp}] ${message}</div>`;
-                    logContent.scrollTop = logContent.scrollHeight;
-                }
-
-                if (window.console) {
-                    console.log(`[Apple Books] ${message}`);
-                }
-            };
+            window.appleLog = function(message, type = 'info') {
+    const logContent = document.getElementById('log-content');
+    if (logContent) {
+        const timestamp = new Date().toLocaleTimeString();
+        const color = type === 'error' ? '#f44' : type === 'warn' ? '#fa0' : '#0f0';
+        logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${timestamp}] ${message}</div>`;
+        logContent.scrollTop = logContent.scrollHeight;
+    } else {
+        // Store messages if log isn't ready yet
+        if (!window.pendingLogs) window.pendingLogs = [];
+        window.pendingLogs.push({message, type, timestamp: new Date().toLocaleTimeString()});
+    }
+};
+            // Flush pending logs when DOM is ready
+function flushPendingLogs() {
+    if (window.pendingLogs && window.pendingLogs.length > 0) {
+        const logContent = document.getElementById('log-content');
+        if (logContent) {
+            window.pendingLogs.forEach(log => {
+                const color = log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0';
+                logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${log.timestamp}] ${log.message}</div>`;
+            });
+            logContent.scrollTop = logContent.scrollHeight;
+            window.pendingLogs = [];
+        }
+    }
+}
             appleLog('Apple Books API implementation loaded');
+// Try to flush logs immediately and set up interval
+setTimeout(flushPendingLogs, 100);
+setInterval(flushPendingLogs, 1000);
 
             if (!window.indexedDB) {
                 appleLog('Implementing IndexedDB for Apple Books', 'warn');
