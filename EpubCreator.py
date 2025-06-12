@@ -44,8 +44,9 @@ def create_eaglecraft_epub():
         return False
 
     browser_api_fixes = """
-    <script type="text/javascript">
-      window.toggleDebugLog = function() {
+<script type="text/javascript">
+// Fixed: Proper function declarations without window prefix inside script
+function toggleDebugLog() {
     const logger = document.getElementById('apple-books-logger');
     const button = document.getElementById('debug-toggle-btn');
     
@@ -61,41 +62,8 @@ def create_eaglecraft_epub():
         }
     }
 }
-</script>
-    <div id="apple-books-logger" style="
-        position: fixed; 
-        top: 0; 
-        right: 0; 
-        width: 300px; 
-        height: 200px; 
-        background: rgba(0,0,0,0.9); 
-        color: #0f0; 
-        font-family: monospace; 
-        font-size: 10px; 
-        padding: 10px; 
-        overflow-y: auto; 
-        z-index: 999999; 
-        border: 2px solid #666; 
-        display: none;
-    ">
-        <div style="color: #fff; font-weight: bold; margin-bottom: 5px;">
-            Apple Books Debug Log
-            <button onclick="toggleDebugLog()" 
-                    style="float: right; background: #f44; color: white; border: none; padding: 2px 6px;">×</button>
-        </div>
-        <div id="log-content"></div>
-    </div>
-    <button id="debug-toggle-btn" onclick="toggleDebugLog()" 
-            style="position: fixed; top: 10px; right: 10px; z-index: 1000000; background: #333; color: #0f0; border: 1px solid #666; padding: 5px;">
-        Debug Log
-    </button>
 
-    <script type="text/javascript">
-   
-        (function() {
-            'use strict';
-
-            window.appleLog = function(message, type = 'info') {
+function appleLog(message, type = 'info') {
     const logContent = document.getElementById('log-content');
     if (logContent) {
         const timestamp = new Date().toLocaleTimeString();
@@ -107,26 +75,33 @@ def create_eaglecraft_epub():
         if (!window.pendingLogs) window.pendingLogs = [];
         window.pendingLogs.push({message, type, timestamp: new Date().toLocaleTimeString()});
     }
-};
-            // Flush pending logs when DOM is ready
-function flushPendingLogs() {
-    const logContent = document.getElementById('log-content');
-    if (window.pendingLogs && window.pendingLogs.length > 0 && logContent) {
-        window.pendingLogs.forEach(log => {
-            const color = log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0';
-            logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${log.timestamp}] ${log.message}</div>`;
-        });
-        logContent.scrollTop = logContent.scrollHeight;
-        window.pendingLogs = [];
+}
+
+// Fixed: Proper IIFE structure and function calls
+(function() {
+    'use strict';
+    
+    // Flush pending logs when DOM is ready
+    function flushPendingLogs() {
+        const logContent = document.getElementById('log-content');
+        if (window.pendingLogs && window.pendingLogs.length > 0 && logContent) {
+            window.pendingLogs.forEach(log => {
+                const color = log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0';
+                logContent.innerHTML += `<div style="color: ${color}; margin-bottom: 2px;">[${log.timestamp}] ${log.message}</div>`;
+            });
+            logContent.scrollTop = logContent.scrollHeight;
+            window.pendingLogs = [];
+        }
     }
-}
-            appleLog('Apple Books API implementation loaded');
-// Try to flush logs immediately and set up interval
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', flushPendingLogs);
-} else {
-    setTimeout(flushPendingLogs, 50);
-}
+    
+    appleLog('Apple Books API implementation loaded');
+    
+    // Fixed: Proper event listener setup
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', flushPendingLogs);
+    } else {
+        setTimeout(flushPendingLogs, 50);
+    }
 
             if (!window.indexedDB) {
                 appleLog('Implementing IndexedDB for Apple Books', 'warn');
@@ -134,69 +109,65 @@ if (document.readyState === 'loading') {
                 const memoryDB = new Map();
 
                 window.indexedDB = {
-                    open: function(name, version) {
-                        appleLog(`Opening IndexedDB: ${name} v${version}`);
+    open: function(name, version) {
+        appleLog(`Opening IndexedDB: ${name} v${version}`);
 
-                        return new Promise((resolve) => {
-                            const db = {
-                                name: name,
-                                version: version || 1,
-                                transaction: function(stores, mode = 'readonly') {
-                                    return {
-                                        objectStore: function(storeName) {
-                                            const storeKey = `${name}_${storeName}`;
-                                            if (!memoryDB.has(storeKey)) {
-                                                memoryDB.set(storeKey, new Map());
-                                            }
+        return new Promise((resolve) => {
+            const db = {
+                name: name,
+                version: version || 1,
+                transaction: function(stores, mode = 'readonly') {
+                    return {
+                        objectStore: function(storeName) {
+                            const storeKey = `${name}_${storeName}`;
+                            if (!memoryDB.has(storeKey)) {
+                                memoryDB.set(storeKey, new Map());
+                            }
 
-                                            return {
-                                                get: function(key) {
-                                                    return new Promise((resolve) => {
-                                                        const store = memoryDB.get(storeKey);
-                                                        const result = store ? store.get(key) : undefined;
-                                                        resolve(result ? { target: { result: result } } : { target: { result: undefined } });
-                                                    });
-                                                },
-                                                put: function(value, key) {
-                                                    return new Promise((resolve) => {
-                                                        const store = memoryDB.get(storeKey);
-                                                        if (store) {
-                                                            store.set(key, value);
-                                                        }
-                                                        resolve({ target: { result: key } });
-                                                    });
-                                                },
-                                                delete: function(key) {
-                                                    return new Promise((resolve) => {
-                                                        const store = memoryDB.get(storeKey);
-                                                        if (store) {
-                                                            store.delete(key);
-                                                        }
-                                                        resolve({ target: { result: undefined } });
-                                                    });
-                                                }
-                                            };
-                                        }
-                                    };
+                            return {
+                                get: function(key) {
+                                    return new Promise((resolve) => {
+                                        const store = memoryDB.get(storeKey);
+                                        const result = store ? store.get(key) : undefined;
+                                        resolve({ target: { result: result } });
+                                    });
                                 },
-                                createObjectStore: function(name, options) {
-                                    const storeKey = `${this.name}_${name}`;
-                                    memoryDB.set(storeKey, new Map());
-                                    appleLog(`Created object store: ${name}`);
-                                    return this.transaction([name], 'readwrite').objectStore(name);
+                                put: function(value, key) {
+                                    return new Promise((resolve) => {
+                                        const store = memoryDB.get(storeKey);
+                                        if (store) {
+                                            store.set(key, value);
+                                        }
+                                        resolve({ target: { result: key } });
+                                    });
+                                },
+                                delete: function(key) {
+                                    return new Promise((resolve) => {
+                                        const store = memoryDB.get(storeKey);
+                                        if (store) {
+                                            store.delete(key);
+                                        }
+                                        resolve({ target: { result: undefined } });
+                                    });
                                 }
                             };
+                        }
+                    };
+                },
+                createObjectStore: function(name, options) {
+                    const storeKey = `${this.name}_${name}`;
+                    memoryDB.set(storeKey, new Map());
+                    appleLog(`Created object store: ${name}`);
+                    return this.transaction([name], 'readwrite').objectStore(name);
+                }
+            };
 
-                            setTimeout(() => {
-                                resolve({
-                                    target: { result: db },
-                                    target: { result: db }
-                                });
-                            }, 10);
-                        });
-                    }
-                };
-            }
+            setTimeout(() => {
+                resolve({ target: { result: db } });
+            }, 10);
+        });
+    }
+};
 
             if (!window.caches) {
                 appleLog('Implementing Cache API for Apple Books', 'warn');
@@ -227,47 +198,49 @@ if (document.readyState === 'loading') {
                 };
             }
             if (window.fetch) {
-                const originalFetch = window.fetch;
-                window.fetch = function(url, options = {}) {
-    appleLog(`Fetch request: ${url}`);
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options = {}) {
+        appleLog(`Fetch request: ${url}`);
 
-    // Only add timeout for non-WebSocket and non-critical network requests
-    const isWebSocket = url.includes('ws://') || url.includes('wss://');
-    const isServerRequest = url.includes('api.') || url.includes('server') || url.includes(':') || url.includes('http') || url.includes('ws');
-    if (isWebSocket || isServerRequest) {
-        // Let server requests use default timeout
-        return originalFetch(url, {
+        // Only add timeout for non-WebSocket and non-critical network requests
+        const isWebSocket = url.includes('ws://') || url.includes('wss://');
+        const isServerRequest = url.includes('api.') || url.includes('server') || url.includes(':') || url.includes('http') || url.includes('ws');
+        
+        if (isWebSocket || isServerRequest) {
+            // Let server requests use default timeout
+            return originalFetch(url, {
+                ...options,
+                mode: 'cors',
+                cache: 'no-cache'
+            }).then(response => {
+                appleLog(`Fetch response: ${url} - ${response.status}`);
+                return response;
+            }).catch(error => {
+                appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
+                throw error;
+            });
+        }
+
+        // For asset requests, use timeout
+        const fetchPromise = originalFetch(url, {
             ...options,
             mode: 'cors',
-            cache: 'no-cache'  // Changed for server requests
+            cache: 'default'
         }).then(response => {
             appleLog(`Fetch response: ${url} - ${response.status}`);
             return response;
         }).catch(error => {
             appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
-            throw error;  // Re-throw for proper error handling
+            throw error;
         });
-    }
 
-    // Keep timeout only for asset requests
-    const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Network timeout')), 15000);
-    });
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Network timeout')), 15000);
+        });
 
-    const fetchPromise = originalFetch(url, {
-        ...options,
-        mode: 'cors',
-        cache: 'default'
-    }).then(response => {
-        appleLog(`Fetch response: ${url} - ${response.status}`);
-        return response;
-    }).catch(error => {
-        appleLog(`Fetch failed: ${url} - ${error.message}`, 'error');
-        throw error;
-    });
-
-    return Promise.race([fetchPromise, timeoutPromise]);
-};
+        return Promise.race([fetchPromise, timeoutPromise]);
+    };
+}
             if (window.XMLHttpRequest) {
                 const OriginalXHR = window.XMLHttpRequest;
                 window.XMLHttpRequest = function() {
@@ -510,7 +483,7 @@ body {{
      .status {{
        margin-top: 15px;
        font-size: 14px;
-       color: 
+       color: #cccccc;
      }}
      .loading {{
        display: none;
@@ -593,6 +566,36 @@ body {{
    </script>
  </head>
  <body>
+    
+   <div id="apple-books-logger" style="
+    position: fixed; 
+    top: 0; 
+    right: 0; 
+    width: 300px; 
+    height: 200px; 
+    background: rgba(0,0,0,0.9); 
+    color: #0f0; 
+    font-family: monospace; 
+    font-size: 10px; 
+    padding: 10px; 
+    overflow-y: auto; 
+    z-index: 999999; 
+    border: 2px solid #666; 
+    display: none;
+">
+    <div style="color: #fff; font-weight: bold; margin-bottom: 5px;">
+        Apple Books Debug Log
+        <button onclick="toggleDebugLog()" 
+                style="float: right; background: #f44; color: white; border: none; padding: 2px 6px;">×</button>
+    </div>
+    <div id="log-content"></div>
+</div>
+<button id="debug-toggle-btn" onclick="toggleDebugLog()" 
+        style="position: fixed; top: 10px; right: 10px; z-index: 1000000; background: #333; color: #0f0; border: 1px solid #666; padding: 5px;">
+    Debug Log
+</button>
+
+
    <div class="header">
      <h1>Eaglecraft - Apple Books Enhanced</h1>
      <p>With comprehensive browser API support and visible debugging</p>
