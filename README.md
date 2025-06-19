@@ -160,7 +160,7 @@ shutil.rmtree(output_dir)
 - Apple Books installed on target device (iOS/macOS)
 
 ### Steps
-
+Option 1: 
 ```bash
 git clone https://github.com/Admin112321/AppleBooksEagleCraft.git
 cd AppleBooksEagleCraft
@@ -171,7 +171,10 @@ python3 EaglePub.py
 - Transfer via AirDrop or Finder into Apple Books
 
 ---
-
+Option 2: 
+Copy the code in EaglePub.py, then paste it into your code ide, such as wing ide, or any program that can run python like replit.
+Next, geta  eaglecraft release. eaglecraft.html was taken from the official eaglecraft dowload site, but you may use other 'modified' clients, but be sure to rename it to eaglecraft.html once you import it into your code executor. 
+It will generate eaglecraft_book.epub, which can then be opened in apple books. 
 ## How It Works
 
 1. Apple Books opens `index.xhtml`, which contains a launcher interface.
